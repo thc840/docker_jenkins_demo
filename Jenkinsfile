@@ -6,8 +6,8 @@ pipeline {
         DOCKER_IMAGE_NAME  = 'thc480/docker_jenkins_demo'
         IMAGE_TAG          = '1.1'
         CONTAINER_NAME     = 'docker_jenkins_demo_container'
-        HOST_PORT          = '8080'
-        CONTAINER_PORT     = '80'
+        HOST_PORT          = '8088'
+        CONTAINER_PORT     = '5000'
     }
 
     stages {
