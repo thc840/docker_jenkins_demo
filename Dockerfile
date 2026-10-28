@@ -1,10 +1,10 @@
-FROM  python:3.9-slim-buster
+FROM  python:alpine
 
-WORKDIR    /ditiss_python
-COPY    .     /ditiss_python
+WORKDIR /app
+COPY . .
 
-RUN   pip    install  -r   requirements.txt
+RUN pip install -r requirements.txt
 
-EXPOSE     5000
+EXPOSE 5000
 
 CMD ["python", "app.py"]
