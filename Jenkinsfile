@@ -2,84 +2,83 @@ pipeline {
     agent any
 
     environment {
-        GIT_REPOSITORY_URL = 'https://github.com/thc840/docker_jenkins_demo.git'
-        DOCKER_IMAGE_NAME  = 'thc480/docker_jenkins_demo'
-        IMAGE_TAG          = '1.1'
-        CONTAINER_NAME     = 'docker_jenkins_demo_container'
-        HOST_PORT          = '8088'
-        CONTAINER_PORT     = '5000'
+        DOCKER_IMAGE_NAME = 'thc480/docker_jenkins_demo'
+        CONTAINER_NAME    = 'production_app'
+        HOST_PORT         = '8085'
+        CONTAINER_PORT    = '5000'
+    }
+
+    triggers {
+        githubPush()
     }
 
     stages {
-        stage('Clone Repository') {
+        stage('Checkout Code') {
             steps {
-                script {
-                    try {
-                        git branch: 'jenkin_pipeline_container_run', url: GIT_REPOSITORY_URL
-                    } catch (Exception e) {
-                        echo "Failed to clone repository: ${e.message}"
-                        error "Failed to clone repository"
-                    }
-                }
+                checkout scm
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    try {
-                        docker.build("${DOCKER_IMAGE_NAME}:${IMAGE_TAG}")
-                    } catch (Exception e) {
-                        echo "Failed to build Docker image: ${e.message}"
-                        error "Failed to build Docker image"
-                    }
+                    echo "Building Docker image ${DOCKER_IMAGE_NAME}:${env.BUILD_NUMBER}..."
+                    sh "docker build -t ${DOCKER_IMAGE_NAME}:${env.BUILD_NUMBER} -t ${DOCKER_IMAGE_NAME}:latest ."
                 }
             }
         }
 
-        stage('Run Docker Container') {
+        stage('Deploy Container') {
             steps {
                 script {
-                    try {
-                        sh """
+                    echo "Deploying updated container to port ${HOST_PORT}..."
+                    sh """
                         docker rm -f ${CONTAINER_NAME} || true
-                        docker run -d --name ${CONTAINER_NAME} -p ${HOST_PORT}:${CONTAINER_PORT} ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
-                        """
-                    } catch (Exception e) {
-                        echo "Failed to run Docker container: ${e.message}"
-                        error "Failed to run Docker container"
-                    }
+
+                        docker run -d \
+                            --name ${CONTAINER_NAME} \
+                            --restart unless-stopped \
+                            -p ${HOST_PORT}:${CONTAINER_PORT} \
+                            ${DOCKER_IMAGE_NAME}:${env.BUILD_NUMBER}
+                    """
                 }
             }
         }
 
-        stage('Verify Container Running') {
+        stage('Verify Health') {
             steps {
                 script {
-                    try {
-                        sh """
+                    echo "Verifying application..."
+                    sh """
                         sleep 3
                         STATUS=\$(docker inspect --format='{{.State.Status}}' ${CONTAINER_NAME})
                         echo "Container Status: \$STATUS"
-                        
+
                         if [ "\$STATUS" != "running" ]; then
-                            echo "Container is not running!"
+                            echo "Deployment failed: container crashed on startup."
                             docker logs ${CONTAINER_NAME}
                             exit 1
                         fi
-                        """
-                    } catch (Exception e) {
-                        echo "Container verification failed: ${e.message}"
-                        error "Container verification failed"
-                    }
+
+                        curl --fail --retry 3 --retry-delay 2 http://localhost:${HOST_PORT}/ || {
+                            echo "Application failed to respond to HTTP requests."
+                            docker logs ${CONTAINER_NAME}
+                            exit 1
+                        }
+
+                        echo "Deployment successful: Application is live on port ${HOST_PORT}."
+                    """
                 }
             }
         }
     }
 
     post {
-        always {
-            sh "docker rm -f ${CONTAINER_NAME} || true"
+        failure {
+            echo "Pipeline failed. Check stage logs for details."
+        }
+        cleanup {
+            sh "docker image prune -f || true"
         }
     }
 }
