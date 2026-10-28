@@ -4,7 +4,7 @@ pipeline {
     environment {
         GIT_REPOSITORY_URL = 'https://github.com/thc840/docker_jenkins_demo.git'
         DOCKER_IMAGE_NAME = 'thc480/docker_jenkins_demo'
-        IMAGE_TAG = '1.0'
+        IMAGE_TAG = '1.1'
     }
 
     stages {
